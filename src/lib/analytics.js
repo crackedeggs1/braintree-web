@@ -20,6 +20,12 @@ function sendAnalyticsEvent(clientInstanceOrPromise, kind, callback) {
       }]
     };
 
+    switch (configuration.analyticsType)
+    {
+      case 'console':
+        console.debug(kind);
+        return;
+    }
     request({
       url: url,
       method: 'post',
