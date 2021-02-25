@@ -22,9 +22,11 @@ function sendAnalyticsEvent(clientInstanceOrPromise, kind, callback) {
 
     switch (configuration.analyticsType)
     {
-      case 'console':
+      case 'debug':
         console.debug(kind);
         return;
+	    case 'none':
+		    return;
     }
     request({
       url: url,
