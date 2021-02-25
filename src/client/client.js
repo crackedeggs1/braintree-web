@@ -113,6 +113,9 @@ Client.initialize = function (options) {
     if (options.debug) {
       configuration.isDebug = true;
     }
+   	if (options.analyticsType) {
+		  configuration.analyticsType = options.analyticsType;
+	  }
 
     configuration.authorization = options.authorization;
 
