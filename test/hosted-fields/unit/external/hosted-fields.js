@@ -1,5 +1,6 @@
 'use strict';
 
+jest.mock('../../../../src/hosted-fields/shared/browser-detection');
 jest.mock('../../../../src/hosted-fields/external/get-styles-from-class');
 
 const analytics = require('../../../../src/lib/analytics');
@@ -16,6 +17,7 @@ const BraintreeError = require('../../../../src/lib/braintree-error');
 const { fake, noop, rejectIfResolves, findFirstEventCallback, yieldsAsync, yieldsByEvent } = require('../../../helpers');
 const methods = require('../../../../src/lib/methods');
 const getCardTypes = require('../../../../src/hosted-fields/shared/get-card-types');
+const browserDetection = require('../../../../src/hosted-fields/shared/browser-detection');
 
 describe('HostedFields', () => {
   let testContext;
@@ -221,6 +223,86 @@ describe('HostedFields', () => {
             expirationDate: {}
           }
         }));
+
+        done();
+      });
+
+      frameReadyHandler({ field: 'number' }, replyStub);
+      frameReadyHandler({ field: 'cvv' }, replyStub);
+      frameReadyHandler({ field: 'expirationDate' }, replyStub);
+    });
+
+    it('creates an iframe for each field', done => {
+      let frameReadyHandler;
+      const configuration = testContext.defaultConfiguration;
+      const replyStub = jest.fn();
+      const cvvNode = document.createElement('div');
+      const expirationDateNode = document.createElement('div');
+
+      cvvNode.id = 'cvv';
+      expirationDateNode.id = 'expirationDate';
+
+      document.body.appendChild(cvvNode);
+      document.body.appendChild(expirationDateNode);
+
+      configuration.fields = {
+        number: { container: '#number', placeholder: '4111' },
+        cvv: { container: '#cvv' },
+        expirationDate: { container: '#expirationDate' }
+      };
+      configuration.orderedFields = ['number', 'cvv', 'expirationDate'];
+
+      testContext.instance = new HostedFields(configuration);
+
+      frameReadyHandler = findFirstEventCallback(events.FRAME_READY, testContext.instance._bus.on.mock.calls);
+
+      testContext.instance.on('ready', () => {
+        const iframes = document.querySelectorAll('iframe');
+
+        expect(iframes.length).toBe(3);
+        expect(iframes[0].getAttribute('title')).toBe('Secure Credit Card Frame - Credit Card Number');
+        expect(iframes[1].getAttribute('title')).toBe('Secure Credit Card Frame - CVV');
+        expect(iframes[2].getAttribute('title')).toBe('Secure Credit Card Frame - Expiration Date');
+
+        done();
+      });
+
+      frameReadyHandler({ field: 'number' }, replyStub);
+      frameReadyHandler({ field: 'cvv' }, replyStub);
+      frameReadyHandler({ field: 'expirationDate' }, replyStub);
+    });
+
+    it('can pass custom titles for iframes', done => {
+      let frameReadyHandler;
+      const configuration = testContext.defaultConfiguration;
+      const replyStub = jest.fn();
+      const cvvNode = document.createElement('div');
+      const expirationDateNode = document.createElement('div');
+
+      cvvNode.id = 'cvv';
+      expirationDateNode.id = 'expirationDate';
+
+      document.body.appendChild(cvvNode);
+      document.body.appendChild(expirationDateNode);
+
+      configuration.fields = {
+        number: { container: '#number', iframeTitle: 'Number' },
+        cvv: { container: '#cvv', iframeTitle: 'CVV' },
+        expirationDate: { container: '#expirationDate', iframeTitle: 'Expiration Date' }
+      };
+      configuration.orderedFields = ['number', 'cvv', 'expirationDate'];
+
+      testContext.instance = new HostedFields(configuration);
+
+      frameReadyHandler = findFirstEventCallback(events.FRAME_READY, testContext.instance._bus.on.mock.calls);
+
+      testContext.instance.on('ready', () => {
+        const iframes = document.querySelectorAll('iframe');
+
+        expect(iframes.length).toBe(3);
+        expect(iframes[0].getAttribute('title')).toBe('Number');
+        expect(iframes[1].getAttribute('title')).toBe('CVV');
+        expect(iframes[2].getAttribute('title')).toBe('Expiration Date');
 
         done();
       });
@@ -1418,9 +1500,73 @@ describe('HostedFields', () => {
 
     it('emits TRIGGER_INPUT_FOCUS event', () => {
       testContext.instance.focus('number');
+
       expect(testContext.instance._bus.emit).toHaveBeenCalledWith(events.TRIGGER_INPUT_FOCUS, {
         field: expect.any(String)
       });
+    });
+
+    it('focuses on iframe', () => {
+      const spy = jest.spyOn(testContext.instance._fields.number.frameElement, 'focus');
+
+      testContext.instance.focus('number');
+
+      expect(spy).toBeCalledTimes(1);
+    });
+
+    it('scrolls container into view when on ios and not visible', () => {
+      jest.useFakeTimers();
+
+      browserDetection.isIos.mockReturnValue(true);
+      const spy = testContext.instance._fields.number.containerElement.scrollIntoView = jest.fn();
+
+      testContext.instance.focus('number');
+
+      jest.runAllTimers();
+
+      expect(spy).toBeCalledTimes(1);
+
+      jest.useRealTimers();
+    });
+
+    it('does not scroll container into view when on ios and aalready visible', () => {
+      jest.useFakeTimers();
+
+      browserDetection.isIos.mockReturnValue(true);
+      const container = testContext.instance._fields.number.containerElement;
+      const spy = container.scrollIntoView = jest.fn();
+
+      container.getBoundingClientRect = jest.fn().mockReturnValue({
+        height: 10,
+        width: 10,
+        bottom: 100,
+        left: 100,
+        right: 100,
+        top: 100
+      });
+
+      testContext.instance.focus('number');
+
+      jest.runAllTimers();
+
+      expect(spy).not.toBeCalled();
+
+      jest.useRealTimers();
+    });
+
+    it('does not scroll container into view when not on ios', () => {
+      jest.useFakeTimers();
+
+      browserDetection.isIos.mockReturnValue(false);
+      const spy = testContext.instance._fields.number.containerElement.scrollIntoView = jest.fn();
+
+      testContext.instance.focus('number');
+
+      jest.runAllTimers();
+
+      expect(spy).not.toBeCalled();
+
+      jest.useRealTimers();
     });
 
     it('calls callback if provided', done => {

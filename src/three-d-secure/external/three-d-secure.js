@@ -43,6 +43,7 @@ var FRAMEWORKS = require('./frameworks');
 /**
  * @typedef {object} ThreeDSecure~verifyPayload
  * @property {string} nonce The new payment method nonce produced by the 3D Secure lookup. The original nonce passed into {@link ThreeDSecure#verifyCard|verifyCard} was consumed. This new nonce should be used to transact on your server.
+ * @property {string} type The payment method type.
  * @property {object} details Additional account details.
  * @property {string} details.cardType Type of card, ex: Visa, MasterCard.
  * @property {string} details.lastFour Last four digits of card number.
@@ -60,7 +61,7 @@ var FRAMEWORKS = require('./frameworks');
  * @property {string} binData.productId The product id.
  * @property {boolean} liabilityShiftPossible *Deprecated:* Use `threeDSecureInfo.liabilityShiftPossible` instead.
  * @property {boolean} liabilityShifted *Deprecated:* Use `threeDSecureInfo.liabilityShifted` instead.
- * @property {object} threeDSecureInfo 3DS information about the card. Note: This information should be verified on the server by using the [payment method nonce find method](https://developers.braintreepayments.com/reference/request/payment-method-nonce/find). The values provided here are merely for convenience. Only values looked up on the server should determine the logic about how to process a transaction.
+ * @property {object} threeDSecureInfo 3DS information about the card. Note: This information should be verified on the server by using the [payment method nonce find method](https://developer.paypal.com/braintree/docs/reference/request/payment-method-nonce/find). The values provided here are merely for convenience. Only values looked up on the server should determine the logic about how to process a transaction.
  * @property {boolean} threeDSecureInfo.liabilityShiftPossible Indicates whether the card was eligible for 3D Secure.
  * @property {boolean} threeDSecureInfo.liabilityShifted Indicates whether the liability for fraud has been shifted away from the merchant.
  * @property {string} threeDSecureInfo.cavv Cardholder authentication verification value or CAVV. The main encrypted message issuers and card networks use to verify authentication has occurred. Mastercard uses an AVV message and American Express uses an AEVV message, each of which should also be passed in the cavv parameter.
@@ -357,7 +358,9 @@ var FRAMEWORKS = require('./frameworks');
  * @description <strong>Do not use this constructor directly. Use {@link module:braintree-web/three-d-secure.create|braintree.threeDSecure.create} instead.</strong>
  * @classdesc This class represents a ThreeDSecure component produced by {@link module:braintree-web/three-d-secure.create|braintree.threeDSecure.create}. Instances of this class have a method for launching a 3D Secure authentication flow.
  *
- * **Note**: 3D Secure 2.0 is documented below and will become the default integration method in a future version of Braintree-web. Until then, version 1.0 will continue to be supported. To view 3D Secure 1.0 documentation, look at Braintree-web documentation from version [3.40.0](https://braintree.github.io/braintree-web/3.40.0/ThreeDSecure.html) and earlier, or upgrade your integration by referring to the [3D Secure 2.0 adoption guide](https://developers.braintreepayments.com/guides/3d-secure/migration/javascript/v3).
+ * If you use the Braintree SDK from within an iframe, you must not use the `sandbox` attribute on your iframe or the 3D Secure modal will not function correctly.
+ *
+ * **Note**: 3D Secure 2.0 is documented below and will become the default integration method in a future version of Braintree-web. Until then, version 1.0 will continue to be supported. To view 3D Secure 1.0 documentation, look at Braintree-web documentation from version [3.40.0](https://braintree.github.io/braintree-web/3.40.0/ThreeDSecure.html) and earlier, or upgrade your integration by referring to the [3D Secure 2.0 adoption guide](https://developer.paypal.com/braintree/docs/guides/3d-secure/migration/javascript/v3).
  */
 function ThreeDSecure(options) {
   var self = this;
@@ -382,6 +385,8 @@ EventEmitter.createChild(ThreeDSecure);
  * @param {string} options.bin The numeric Bank Identification Number (bin) of the card from a tokenization payload. For example, this can be a {@link HostedFields~tokenizePayload|tokenizePayload} returned by Hosted Fields under `payload.details.bin`.
  * @param {string} options.amount The amount of the transaction in the current merchant account's currency. This must be expressed in numbers with an optional decimal (using `.`) and precision up to the hundredths place. For example, if you're processing a transaction for 1.234,56 € then `amount` should be `1234.56`.
  * @param {string} [options.accountType] The account type for the card (if known). Accepted values: `credit` or `debit`.
+ * @param {boolean} [options.cardAddChallengeRequested] If set to `true`, a card-add challenge will be requested from the issuer. If set to `false`, a card-add challenge will not be requested. If the param is missing, a card-add challenge will only be requested for $0 amount. An authentication created using this flag should only be used for vaulting operations (creation of customers' credit cards or payment methods) and not for creating transactions.
+ * @param {boolean} [options.cardAdd] *Deprecated:* Use `cardAddChallengeRequested` instead.
  * @param {boolean} [options.challengeRequested] If set to true, an authentication challenge will be forced if possible.
  * @param {boolean} [options.exemptionRequested] If set to true, an exemption to the authentication challenge will be requested.
  * @param {function} [options.onLookupComplete] *Deprecated:* Use {@link ThreeDSecure#event:lookup-complete|`threeDSecureInstance.on('lookup-complete')`} instead. Function to execute when lookup completes. The first argument, `data`, is a {@link ThreeDSecure~verificationData|verificationData} object, and the second argument, `next`, is a callback. `next` must be called to continue.

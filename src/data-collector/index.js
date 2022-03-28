@@ -60,7 +60,7 @@ var errors = require('./errors');
  * @function
  * @description Resolves with device data once it is ready.
  * @param {object} [options] Options for how device data is resolved.
- * @param {boolean} [stringify=false] Whether or not to return the device data as a JSON string.
+ * @param {boolean} [options.raw=false] When set to true, the device data will resolve as an object instead of a JSON string.
  * @param {callback} [callback] Called on completion. If no callback is provided, `getDeviceData` returns a promise.
  * @instance
  * @example
@@ -92,6 +92,9 @@ var errors = require('./errors');
  * @param {boolean} [options.kount] Kount fraud data collection will occur if the merchant configuration has it enabled.
  * **Note:** the data sent to Kount is asynchronous and may not have completed by the time the data collector create call is complete. In most cases, this will not matter, but if you create the data collector instance and immediately navigate away from the page, the device information may fail to be sent to Kount.
  * @param {boolean} [options.paypal] *Deprecated:* PayPal fraud data collection will occur when the DataCollector instance is created.
+ * @param {string} [options.riskCorrelatoinId] Pass a custom risk correlation id when creating the data collector.
+ * @param {string} [options.clientMetadataId] Deprecated. Use `options.riskCorrelatoinId` instead.
+ * @param {string} [options.correlationId] Deprecated. Use `options.riskCorrelatoinId` instead.
  * @param {callback} [callback] The second argument, `data`, is the {@link DataCollector} instance.
  * @returns {(Promise|void)} Returns a promise that resolves the {@link DataCollector} instance if no callback is provided.
  */
@@ -140,7 +143,10 @@ function create(options) {
 
       return Promise.resolve(client);
     }).then(function (client) {
-      return fraudnet.setup(client.getConfiguration().gatewayConfiguration.environment).then(function (fraudnetInstance) {
+      return fraudnet.setup({
+        sessionId: options.riskCorrelationId || options.clientMetadataId || options.correlationId,
+        environment: client.getConfiguration().gatewayConfiguration.environment
+      }).then(function (fraudnetInstance) {
         if (fraudnetInstance) {
           data.correlation_id = fraudnetInstance.sessionId; // eslint-disable-line camelcase
           result._instances.push(fraudnetInstance);

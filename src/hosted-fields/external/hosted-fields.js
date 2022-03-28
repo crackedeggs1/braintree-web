@@ -39,8 +39,8 @@ var SAFARI_FOCUS_TIMEOUT = 5;
 /**
  * @typedef {object} HostedFields~tokenizePayload
  * @property {string} nonce The payment method nonce.
- * @property {object} authenticationInsight Info about the [regulatory environment](https://developers.braintreepayments.com/guides/3d-secure/advanced-options/javascript/v3#authentication-insight) of the tokenized card. Only available if `authenticationInsight.merchantAccountId` is passed in the `tokenize` method options.
- * @property {string} authenticationInsight.regulationEnvironment The [regulation environment](https://developers.braintreepayments.com/guides/3d-secure/advanced-options/javascript/v3#authentication-insight) for the tokenized card.
+ * @property {object} authenticationInsight Info about the [regulatory environment](https://developer.paypal.com/braintree/docs/guides/3d-secure/advanced-options/javascript/v3#authentication-insight) of the tokenized card. Only available if `authenticationInsight.merchantAccountId` is passed in the `tokenize` method options.
+ * @property {string} authenticationInsight.regulationEnvironment The [regulation environment](https://developer.paypal.com/braintree/docs/guides/3d-secure/advanced-options/javascript/v3#authentication-insight) for the tokenized card.
  * @property {object} details Additional account details.
  * @property {string} details.bin The BIN number of the card.
  * @property {string} details.cardType Type of card, ex: Visa, MasterCard.
@@ -321,10 +321,6 @@ function createInputEventHandler(fields) {
 
     field = merchantPayload.fields[emittedBy];
 
-    if (eventData.type === 'blur') {
-      performBlurFixForIos(container);
-    }
-
     classList.toggle(container, constants.externalClasses.FOCUSED, field.isFocused);
     classList.toggle(container, constants.externalClasses.VALID, field.isValid);
     classList.toggle(container, constants.externalClasses.INVALID, !field.isPotentiallyValid);
@@ -336,41 +332,6 @@ function createInputEventHandler(fields) {
 
     this._emit(eventData.type, merchantPayload); // eslint-disable-line no-invalid-this
   };
-}
-
-// iOS Safari has a bug where inputs in iframes
-// will not dismiss the keyboard when they lose
-// focus. We create a hidden button input that we
-// can focus on and blur to force the keyboard to
-// dismiss. See #229
-function performBlurFixForIos(container) {
-  var hiddenInput;
-
-  if (!browserDetection.isIos()) {
-    return;
-  }
-
-  if (document.activeElement === document.body) {
-    hiddenInput = container.querySelector('input');
-
-    if (!hiddenInput) {
-      hiddenInput = document.createElement('input');
-
-      hiddenInput.type = 'button';
-      hiddenInput.style.height = '0px';
-      hiddenInput.style.width = '0px';
-      hiddenInput.style.opacity = '0';
-      hiddenInput.style.padding = '0';
-      hiddenInput.style.position = 'absolute';
-      hiddenInput.style.left = '-200%';
-      hiddenInput.style.top = '0px';
-
-      container.insertBefore(hiddenInput, container.firstChild);
-    }
-
-    hiddenInput.focus();
-    hiddenInput.blur();
-  }
 }
 
 function isVisibleEnough(node) {
@@ -531,13 +492,11 @@ function HostedFields(options) {
       type: key,
       name: 'braintree-hosted-field-' + key,
       style: constants.defaultIFrameStyle,
-      title: 'Secure Credit Card Frame - ' + constants.allowedFields[key].label
+      title: field.iframeTitle || 'Secure Credit Card Frame - ' + constants.allowedFields[key].label
     });
 
     this._injectedNodes.push.apply(this._injectedNodes, injectFrame(componentId, frame, internalContainer, function () {
-      self._bus.emit(events.TRIGGER_INPUT_FOCUS, {
-        field: key
-      });
+      self.focus(key);
     }));
 
     this._setupLabelFocus(key, externalContainer);
@@ -599,9 +558,7 @@ function HostedFields(options) {
       });
     },
     onTriggerInputFocus: function (targetType) {
-      self._bus.emit(events.TRIGGER_INPUT_FOCUS, {
-        field: targetType
-      });
+      self.focus(targetType);
     }
   }));
 
@@ -646,21 +603,6 @@ function HostedFields(options) {
     createInputEventHandler(fields).bind(this)
   );
 
-  if (browserDetection.isIos()) {
-    this._bus.on(events.TRIGGER_INPUT_FOCUS, function (data) {
-      var container = fields[data.field].containerElement;
-
-      // Inputs outside of the viewport don't always scroll into view on
-      // focus in iOS Safari. 5ms timeout gives the browser a chance to
-      // do the right thing and prevents stuttering.
-      setTimeout(function () {
-        if (!isVisibleEnough(container)) {
-          container.scrollIntoView();
-        }
-      }, SAFARI_FOCUS_TIMEOUT);
-    });
-  }
-
   this._destructor.registerFunctionForTeardown(function () {
     var j, node, parent;
 
@@ -694,17 +636,13 @@ EventEmitter.createChild(HostedFields);
 
 HostedFields.prototype._setupLabelFocus = function (type, container) {
   var labels, i;
-  var shouldSkipLabelFocus = browserDetection.isIos();
-  var bus = this._bus;
+  var self = this;
   var rootNode = findRootNode(container);
 
-  if (shouldSkipLabelFocus) { return; }
   if (container.id == null) { return; }
 
   function triggerFocus() {
-    bus.emit(events.TRIGGER_INPUT_FOCUS, {
-      field: type
-    });
+    self.focus(type);
   }
 
   // find any labels in the normal DOM
@@ -848,7 +786,7 @@ HostedFields.prototype.teardown = function () {
  * @public
  * @param {object} [options] All tokenization options for the Hosted Fields component.
  * @param {boolean} [options.vault=false] When true, will vault the tokenized card. Cards will only be vaulted when using a client created with a client token that includes a customer ID. Note: merchants using Advanced Fraud Tools should not use this option, as device data will not be included.
- * @param {object} [options.authenticationInsight] Options for checking authentication insight - the [regulatory environment](https://developers.braintreepayments.com/guides/3d-secure/advanced-options/javascript/v3#authentication-insight) of the tokenized card.
+ * @param {object} [options.authenticationInsight] Options for checking authentication insight - the [regulatory environment](https://developer.paypal.com/braintree/docs/guides/3d-secure/advanced-options/javascript/v3#authentication-insight) of the tokenized card.
  * @param {string} options.authenticationInsight.merchantAccountId The Braintree merchant account id to use to look up the authentication insight information.
  * @param {array} [options.fieldsToTokenize] By default, all fields will be tokenized. You may specify which fields specifically you wish to tokenize with this property. Valid options are `'number'`, `'cvv'`, `'expirationDate'`, `'expirationMonth'`, `'expirationYear'`, `'postalCode'`, `'cardholderName'`.
  * @param {string} [options.cardholderName] When supplied, the cardholder name to be tokenized with the contents of the fields.
@@ -889,7 +827,7 @@ HostedFields.prototype.teardown = function () {
  *         //     with a customer ID and the fail on duplicate payment method
  *         //     option is set to true
  *         //   * the card being tokenized has previously been vaulted (with any customer)
- *         // See: https://developers.braintreepayments.com/reference/request/client-token/generate/#options.fail_on_duplicate_payment_method
+ *         // See: https://developer.paypal.com/braintree/docs/reference/request/client-token/generate#options.fail_on_duplicate_payment_method
  *         console.error('This payment method already exists in your vault.');
  *         break;
  *       case 'HOSTED_FIELDS_TOKENIZATION_CVV_VERIFICATION_FAILED':
@@ -898,8 +836,8 @@ HostedFields.prototype.teardown = function () {
  *         //     with a customer ID and the verify card option is set to true
  *         //     and you have credit card verification turned on in the Braintree
  *         //     control panel
- *         //   * the cvv does not pass verification (https://developers.braintreepayments.com/reference/general/testing/#avs-and-cvv/cid-responses)
- *         // See: https://developers.braintreepayments.com/reference/request/client-token/generate/#options.verify_card
+ *         //   * the cvv does not pass verification (https://developer.paypal.com/braintree/docs/reference/general/testing#avs-and-cvv/cid-responses)
+ *         // See: https://developer.paypal.com/braintree/docs/reference/request/client-token/generate#options.verify_card
  *         console.error('CVV did not pass verification');
  *         break;
  *       case 'HOSTED_FIELDS_FAILED_TOKENIZATION':
@@ -960,7 +898,7 @@ HostedFields.prototype.teardown = function () {
  *     // passing just one of the country options is sufficient to
  *     // associate the card details with a particular country
  *     // valid country names and codes can be found here:
- *     // https://developers.braintreepayments.com/reference/general/countries/ruby#list-of-countries
+ *     // https://developer.paypal.com/braintree/docs/reference/general/countries/ruby#list-of-countries
  *     countryName: 'United States',
  *     countryCodeAlpha2: 'US',
  *     countryCodeAlpha3: 'USA',
@@ -1399,15 +1337,13 @@ HostedFields.prototype.clear = function (field) {
  *   // In Firefox, the focus method can be suppressed
  *   //   if the element has a tabindex property or the element
  *   //   is an anchor link with an href property.
- *   // In Mobile Safari, the focus method is unable to
- *   //   programmatically open the keyboard, as only
- *   //   touch events are allowed to do so.
  *   e.preventDefault();
  *   hostedFieldsInstance.focus('number');
  * });
  */
 HostedFields.prototype.focus = function (field) {
   var err;
+  var fieldConfig = this._fields[field];
 
   if (!allowedFields.hasOwnProperty(field)) {
     err = new BraintreeError({
@@ -1422,9 +1358,22 @@ HostedFields.prototype.focus = function (field) {
       message: 'Cannot focus "' + field + '" field because it is not part of the current Hosted Fields options.'
     });
   } else {
+    fieldConfig.frameElement.focus();
+
     this._bus.emit(events.TRIGGER_INPUT_FOCUS, {
       field: field
     });
+
+    if (browserDetection.isIos()) {
+      // Inputs outside of the viewport don't always scroll into view on
+      // focus in iOS Safari. 5ms timeout gives the browser a chance to
+      // do the right thing and prevents stuttering.
+      setTimeout(function () {
+        if (!isVisibleEnough(fieldConfig.containerElement)) {
+          fieldConfig.containerElement.scrollIntoView();
+        }
+      }, SAFARI_FOCUS_TIMEOUT);
+    }
   }
 
   if (err) {

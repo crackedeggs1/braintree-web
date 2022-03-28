@@ -14,14 +14,18 @@ var cardTypeTransforms = {
     SOLO: 'Solo',
     UK_MAESTRO: 'UK Maestro',
     UNION_PAY: 'UnionPay',
-    VISA: 'Visa'
+    VISA: 'Visa',
+    ELO: 'Elo',
+    HIPER: 'Hiper',
+    HIPERCARD: 'Hipercard'
   },
   applePayWeb: {
     VISA: 'visa',
     MASTERCARD: 'mastercard',
     DISCOVER: 'discover',
     AMERICAN_EXPRESS: 'amex',
-    INTERNATIONAL_MAESTRO: 'maestro'
+    INTERNATIONAL_MAESTRO: 'maestro',
+    ELO: 'elo'
   },
   visaCheckout: {
     VISA: 'Visa',
@@ -33,7 +37,9 @@ var cardTypeTransforms = {
     VISA: 'visa',
     MASTERCARD: 'mastercard',
     DISCOVER: 'discover',
-    AMERICAN_EXPRESS: 'amex'
+    AMERICAN_EXPRESS: 'amex',
+    INTERNATIONAL_MAESTRO: 'maestro',
+    ELO: 'elo'
   },
   masterpass: {
     VISA: 'visa',
@@ -162,6 +168,7 @@ function adaptConfigurationResponseBody(body, ctx) {
   if (configuration.visaCheckout) {
     response.visaCheckout = {
       apikey: configuration.visaCheckout.apiKey,
+      encryptionKey: configuration.visaCheckout.encryptionKey,
       externalClientId: configuration.visaCheckout.externalClientId,
       supportedCardTypes: mapCardTypes(configuration.visaCheckout.supportedCardBrands, cardTypeTransforms.visaCheckout)
     };

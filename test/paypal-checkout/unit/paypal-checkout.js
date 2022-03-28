@@ -56,6 +56,10 @@ describe('PayPalCheckout', () => {
     });
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   describe('_initialize', () => {
     beforeEach(() => {
       testContext.options = {
@@ -116,7 +120,7 @@ describe('PayPalCheckout', () => {
         expect(err.type).toBe('MERCHANT');
         expect(err.code).toBe('PAYPAL_SANDBOX_ACCOUNT_NOT_LINKED');
         expect(err.message).toBe(
-          'A linked PayPal Sandbox account is required to use PayPal Checkout in Sandbox. See https://developers.braintreepayments.com/guides/paypal/testing-go-live/#linked-paypal-testing for details on linking your PayPal sandbox with Braintree.'
+          'A linked PayPal Sandbox account is required to use PayPal Checkout in Sandbox. See https://developer.paypal.com/braintree/docs/guides/paypal/testing-go-live#linked-paypal-testing for details on linking your PayPal sandbox with Braintree.'
         );
       });
     });
@@ -349,6 +353,18 @@ describe('PayPalCheckout', () => {
         });
       });
 
+      it('contains riskCorrelationId when specified', () => {
+        testContext.options.riskCorrelationId = 'foobar';
+
+        return testContext.paypalCheckout.createPayment(testContext.options).then(() => {
+          expect(testContext.client.request.mock.calls[0][0]).toMatchObject({
+            data: {
+              correlationId: 'foobar'
+            }
+          });
+        });
+      });
+
       it('does not contain landing page type when unspecified', () =>
         testContext.paypalCheckout.createPayment(testContext.options).then(() => {
           expect(testContext.client.request.mock.calls[0][0]).toMatchObject({
@@ -382,6 +398,18 @@ describe('PayPalCheckout', () => {
               }
             });
           }));
+
+        it('contains riskCorrelationId when specified', () => {
+          testContext.options.riskCorrelationId = 'foobar';
+
+          return testContext.paypalCheckout.createPayment(testContext.options).then(() => {
+            expect(testContext.client.request.mock.calls[0][0]).toMatchObject({
+              data: {
+                correlationId: 'foobar'
+              }
+            });
+          });
+        });
 
         it('contains shippingOptions when specified', () => {
           testContext.options.shippingOptions = [
@@ -1354,6 +1382,21 @@ describe('PayPalCheckout', () => {
       });
     });
 
+    it('passes the saved risk correlation id as the correlationId when present', () => {
+      testContext.paypalCheckout._riskCorrelationId = 'risk-id';
+
+      testContext.paypalCheckout.tokenizePayment({}).then(() => {
+        expect(testContext.client.request).toHaveBeenCalledTimes(1);
+        expect(testContext.client.request.mock.calls[0][0]).toMatchObject({
+          data: {
+            paypalAccount: {
+              correlationId: 'risk-id'
+            }
+          }
+        });
+      });
+    });
+
     it('passes the BA token as the correlationId when present', () =>
       testContext.paypalCheckout.tokenizePayment({ billingToken: 'BA-1234' }).then(() => {
         expect(testContext.client.request).toHaveBeenCalledTimes(1);
@@ -1377,6 +1420,39 @@ describe('PayPalCheckout', () => {
           }
         });
       }));
+
+    it('prefers the risk correlation id over the billing token', () => {
+      testContext.paypalCheckout._riskCorrelationId = 'risk-id';
+
+      testContext.paypalCheckout.tokenizePayment({
+        billingToken: 'BA-123'
+      }).then(() => {
+        expect(testContext.client.request).toHaveBeenCalledTimes(1);
+        expect(testContext.client.request.mock.calls[0][0]).toMatchObject({
+          data: {
+            paypalAccount: {
+              correlationId: 'risk-id'
+            }
+          }
+        });
+      });
+    });
+
+    it('prefers the billing token over ec token', () => {
+      testContext.paypalCheckout.tokenizePayment({
+        billingToken: 'BA-123',
+        ecToken: 'EC-1234'
+      }).then(() => {
+        expect(testContext.client.request).toHaveBeenCalledTimes(1);
+        expect(testContext.client.request.mock.calls[0][0]).toMatchObject({
+          data: {
+            paypalAccount: {
+              correlationId: 'BA-123'
+            }
+          }
+        });
+      });
+    });
 
     it('validates if flow is vault and auth is not tokenization key', () => {
       testContext.configuration.authorizationType = 'CLIENT_TOKEN';
@@ -1765,6 +1841,49 @@ describe('PayPalCheckout', () => {
       });
     });
 
+    it('omits "data-" prefix if included', () => {
+      const instance = testContext.paypalCheckout;
+
+      const promise = instance.loadPayPalSDK({
+        dataAttributes: {
+          'data-foo': 'bar',
+          'data-client-token': 'value',
+          'data-amount': '100.00'
+        }
+      });
+
+      fakeScript.onload();
+
+      return promise.then(() => {
+        expect(fakeScript.getAttribute('data-foo')).toBe('bar');
+        expect(fakeScript.getAttribute('data-client-token')).toBe('value');
+        expect(fakeScript.getAttribute('data-amount')).toBe('100.00');
+        expect(fakeScript.getAttribute('data-data-foo')).toBeFalsy();
+        expect(fakeScript.getAttribute('data-data-client-token')).toBeFalsy();
+        expect(fakeScript.getAttribute('data-data-amount')).toBeFalsy();
+      });
+    });
+
+    it('does not omit "data-" when used elsewhere in the properites', () => {
+      const instance = testContext.paypalCheckout;
+
+      const promise = instance.loadPayPalSDK({
+        dataAttributes: {
+          'foo-data-bar': 'baz',
+          'dataclient-token': 'value',
+          'amountdata-': '100.00'
+        }
+      });
+
+      fakeScript.onload();
+
+      return promise.then(() => {
+        expect(fakeScript.getAttribute('data-foo-data-bar')).toBe('baz');
+        expect(fakeScript.getAttribute('data-dataclient-token')).toBe('value');
+        expect(fakeScript.getAttribute('data-amountdata-')).toBe('100.00');
+      });
+    });
+
     it('passes authorization fingerprint as data-user-id-token when a client token is used and is enabled for setting it', () => {
       const instance = testContext.paypalCheckout;
 
@@ -1869,7 +1988,7 @@ describe('PayPalCheckout', () => {
       });
     });
 
-    it('uses passed in user-id-token when both exist', () => {
+    it('uses passed in user-id-token when authorization fingerprint also exists', () => {
       const instance = testContext.paypalCheckout;
 
       instance._autoSetDataUserIdToken = true;
@@ -1888,10 +2007,51 @@ describe('PayPalCheckout', () => {
         expect(XMLHttpRequest.prototype.open).toBeCalledWith('GET', expect.stringContaining('user-id-token=custom-auth-fingerprint'));
       });
     });
+
+    it('uses passed in data-user-id-token when authorization fingerprint also exists', () => {
+      const instance = testContext.paypalCheckout;
+
+      instance._autoSetDataUserIdToken = true;
+      instance._authorizationInformation.fingerprint = 'unused-auth-fingerprint';
+
+      const promise = instance.loadPayPalSDK({
+        dataAttributes: {
+          'data-user-id-token': 'custom-auth-fingerprint'
+        }
+      });
+
+      fakeScript.onload();
+
+      return promise.then(() => {
+        expect(fakeScript.getAttribute('data-user-id-token')).toBe('custom-auth-fingerprint');
+        expect(XMLHttpRequest.prototype.open).toBeCalledWith('GET', expect.stringContaining('user-id-token=custom-auth-fingerprint'));
+      });
+    });
+
+    it('uses passed in user-id-token over data-user-id-token when both data attributes are passed', () => {
+      const instance = testContext.paypalCheckout;
+
+      instance._autoSetDataUserIdToken = true;
+      instance._authorizationInformation.fingerprint = 'unused-auth-fingerprint';
+
+      const promise = instance.loadPayPalSDK({
+        dataAttributes: {
+          'user-id-token': 'custom-auth-fingerprint',
+          'data-user-id-token': 'custom-auth-fingerprint-with-data-prefix'
+        }
+      });
+
+      fakeScript.onload();
+
+      return promise.then(() => {
+        expect(fakeScript.getAttribute('data-user-id-token')).toBe('custom-auth-fingerprint');
+        expect(XMLHttpRequest.prototype.open).toBeCalledWith('GET', expect.stringContaining('user-id-token=custom-auth-fingerprint'));
+      });
+    });
   });
 
   describe('teardown', () => {
-    it('replaces all methods so error is thrown when methods are invoked', done => {
+    it('replaces all methods so error is thrown when methods are invoked', () => {
       const instance = testContext.paypalCheckout;
 
       return instance.teardown().then(() => {
@@ -1905,8 +2065,6 @@ describe('PayPalCheckout', () => {
             expect(err.message).toBe(`${method} cannot be called after teardown.`);
           }
         });
-
-        done();
       });
     });
 

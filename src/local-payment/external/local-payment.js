@@ -10,6 +10,7 @@ var methods = require('../../lib/methods');
 var convertMethodsToError = require('../../lib/convert-methods-to-error');
 var convertToBraintreeError = require('../../lib/convert-to-braintree-error');
 var Promise = require('../../lib/promise');
+var ExtendedPromise = require('@braintree/extended-promise');
 var querystring = require('../../lib/querystring');
 var wrapPromise = require('@braintree/wrap-promise');
 var constants = require('./constants');
@@ -62,15 +63,18 @@ LocalPayment.prototype._initialize = function () {
  * @function
  * @param {object} options All options for initiating the local payment payment flow.
  * @param {object} options.fallback Configuration for what to do when app switching back from a Bank app on a mobile device.
- * @param {string} options.fallback.buttonText The text to insert into a button to redirect back to the merchant page.
- * @param {string} options.fallback.url The url to redirect to when the redirect button is activated. Query params will be added to the url to process the data returned from the bank.
+ * @param {string} options.fallback.buttonText The text to display in a button to redirect back to the merchant page.
+ * @param {string} options.fallback.url The url to redirect to when the redirect button is pressed. Query params will be added to the url to process the data returned from the bank.
+ * @param {string} options.fallback.cancelButtonText The text to display in a button to redirect back to the merchant page when the customer cancels. If no `cancelButtonText` is provided, `buttonText` will be used.
+ * @param {string} options.fallback.cancelUrl The url to redirect to when the redirect button is pressed when the customer cancels. Query params will be added to the url to check the state of the payment. If no `cancelUrl` is provided, `url` will be used.
  * @param {object} [options.windowOptions] The options for configuring the window that is opened when starting the payment.
  * @param {number} [options.windowOptions.width=1282] The width in pixels of the window opened when starting the payment. The default width size is this large to allow various banking partner landing pages to display the QR Code to be scanned by the bank's mobile app. Many will not display the QR code when the window size is smaller than a standard desktop screen.
  * @param {number} [options.windowOptions.height=720] The height in pixels of the window opened when starting the payment.
  * @param {string} options.amount The amount to authorize for the transaction.
  * @param {string} options.currencyCode The currency to process the payment.
+ * @param {string} [options.displayName] The merchant name displayed inside of the window that is opened when starting the payment.
  * @param {string} options.paymentType The type of local payment.
- * @param {string} options.paymentTypeCountryCode The country code of the local payment. This value must be one of the supported country codes for a given local payment type listed {@link https://developers.braintreepayments.com/guides/local-payment-methods/client-side-custom/javascript/v3#render-local-payment-method-buttons|here}. For local payments supported in multiple countries, this value may determine which banks are presented to the customer.
+ * @param {string} options.paymentTypeCountryCode The country code of the local payment. This value must be one of the supported country codes for a given local payment type listed {@link https://developer.paypal.com/braintree/docs/guides/local-payment-methods/client-side-custom/javascript/v3#render-local-payment-method-buttons|here}. For local payments supported in multiple countries, this value may determine which banks are presented to the customer.
  * @param {string} options.email Payer email of the customer.
  * @param {string} options.givenName First name of the customer.
  * @param {string} options.surname Last name of the customer.
@@ -118,7 +122,7 @@ LocalPayment.prototype._initialize = function () {
  * @returns {(Promise|void)} Returns a promise if no callback is provided.
  */
 LocalPayment.prototype.startPayment = function (options) {
-  var address, params;
+  var address, params, promise;
   var self = this; // eslint-disable-line no-invalid-this
   var serviceId = this._frameService._serviceId; // eslint-disable-line no-invalid-this
   var windowOptions = options.windowOptions || {};
@@ -135,10 +139,14 @@ LocalPayment.prototype.startPayment = function (options) {
       r: options.fallback.url,
       t: options.fallback.buttonText
     }),
-    cancelUrl: querystring.queryify(self._assetsUrl + '/html/cancel-frame' + useMin(self._isDebug) + '.html', {
-      channel: serviceId
+    cancelUrl: querystring.queryify(self._assetsUrl + '/html/local-payment-redirect-frame' + useMin(self._isDebug) + '.html', {
+      channel: serviceId,
+      r: options.fallback.cancelUrl || options.fallback.url,
+      t: options.fallback.cancelButtonText || options.fallback.buttonText,
+      c: 1 // indicating we went through the cancel flow
     }),
     experienceProfile: {
+      brandName: options.displayName,
       noShipping: !options.shippingAddressRequired
     },
     fundingSource: options.paymentType,
@@ -168,50 +176,55 @@ LocalPayment.prototype.startPayment = function (options) {
 
   self._authorizationInProgress = true;
 
-  return new Promise(function (resolve, reject) {
-    self._startPaymentCallback = self._createStartPaymentCallback(resolve, reject);
+  promise = new ExtendedPromise();
 
-    self._frameService.open({
-      width: windowOptions.width || DEFAULT_WINDOW_WIDTH,
-      height: windowOptions.height || DEFAULT_WINDOW_HEIGHT
-    }, self._startPaymentCallback);
-
-    self._client.request({
-      method: 'post',
-      endpoint: 'local_payments/create',
-      data: params
-    }).then(function (response) {
-      analytics.sendEvent(self._client, self._paymentType + '.local-payment.start-payment.opened');
-      self._startPaymentOptions = options;
-      options.onPaymentStart({paymentId: response.paymentResource.paymentToken}, function () {
-        self._frameService.redirect(response.paymentResource.redirectUrl);
-      });
-    }).catch(function (err) {
-      var status = err.details && err.details.httpStatus;
-
-      self._frameService.close();
-      self._authorizationInProgress = false;
-
-      if (status === 422) {
-        reject(new BraintreeError({
-          type: errors.LOCAL_PAYMENT_INVALID_PAYMENT_OPTION.type,
-          code: errors.LOCAL_PAYMENT_INVALID_PAYMENT_OPTION.code,
-          message: errors.LOCAL_PAYMENT_INVALID_PAYMENT_OPTION.message,
-          details: {
-            originalError: err
-          }
-        }));
-
-        return;
-      }
-
-      reject(convertToBraintreeError(err, {
-        type: errors.LOCAL_PAYMENT_START_PAYMENT_FAILED.type,
-        code: errors.LOCAL_PAYMENT_START_PAYMENT_FAILED.code,
-        message: errors.LOCAL_PAYMENT_START_PAYMENT_FAILED.message
-      }));
-    });
+  self._startPaymentCallback = self._createStartPaymentCallback(function (val) {
+    promise.resolve(val);
+  }, function (err) {
+    promise.reject(err);
   });
+  self._frameService.open({
+    width: windowOptions.width || DEFAULT_WINDOW_WIDTH,
+    height: windowOptions.height || DEFAULT_WINDOW_HEIGHT
+  }, self._startPaymentCallback);
+
+  self._client.request({
+    method: 'post',
+    endpoint: 'local_payments/create',
+    data: params
+  }).then(function (response) {
+    analytics.sendEvent(self._client, self._paymentType + '.local-payment.start-payment.opened');
+    self._startPaymentOptions = options;
+    options.onPaymentStart({paymentId: response.paymentResource.paymentToken}, function () {
+      self._frameService.redirect(response.paymentResource.redirectUrl);
+    });
+  }).catch(function (err) {
+    var status = err.details && err.details.httpStatus;
+
+    self._frameService.close();
+    self._authorizationInProgress = false;
+
+    if (status === 422) {
+      promise.reject(new BraintreeError({
+        type: errors.LOCAL_PAYMENT_INVALID_PAYMENT_OPTION.type,
+        code: errors.LOCAL_PAYMENT_INVALID_PAYMENT_OPTION.code,
+        message: errors.LOCAL_PAYMENT_INVALID_PAYMENT_OPTION.message,
+        details: {
+          originalError: err
+        }
+      }));
+
+      return;
+    }
+
+    promise.reject(convertToBraintreeError(err, {
+      type: errors.LOCAL_PAYMENT_START_PAYMENT_FAILED.type,
+      code: errors.LOCAL_PAYMENT_START_PAYMENT_FAILED.code,
+      message: errors.LOCAL_PAYMENT_START_PAYMENT_FAILED.message
+    }));
+  });
+
+  return promise;
 };
 
 /**
@@ -236,6 +249,32 @@ LocalPayment.prototype.tokenize = function (params) {
   var client = this._client;
 
   params = params || querystring.parse();
+
+  if (params.c || params.wasCanceled) {
+    return Promise.reject(new BraintreeError({
+      type: errors.LOCAL_PAYMENT_CANCELED.type,
+      code: errors.LOCAL_PAYMENT_CANCELED.code,
+      message: errors.LOCAL_PAYMENT_CANCELED.message,
+      details: {
+        originalError: {
+          errorcode: params.errorcode,
+          token: params.btLpToken
+        }
+      }
+    }));
+  } else if (params.errorcode) {
+    return Promise.reject(new BraintreeError({
+      type: errors.LOCAL_PAYMENT_START_PAYMENT_FAILED.type,
+      code: errors.LOCAL_PAYMENT_START_PAYMENT_FAILED.code,
+      message: errors.LOCAL_PAYMENT_START_PAYMENT_FAILED.message,
+      details: {
+        originalError: {
+          errorcode: params.errorcode,
+          token: params.btLpToken
+        }
+      }
+    }));
+  }
 
   return client.request({
     endpoint: 'payment_methods/paypal_accounts',
@@ -295,6 +334,20 @@ LocalPayment.prototype._createStartPaymentCallback = function (resolve, reject) 
     self._authorizationInProgress = false;
     if (err) {
       if (err.code === 'FRAME_SERVICE_FRAME_CLOSED') {
+        if (params && params.errorcode === 'processing_error') {
+          // something failed within the payment window (rather than when
+          // tokenizing with Braintree)
+          analytics.sendEvent(client, self._paymentType + '.local-payment.failed-in-window');
+          reject(new BraintreeError(errors.LOCAL_PAYMENT_START_PAYMENT_FAILED));
+
+          return;
+        }
+
+        // its possible to have a query param with errorcode=payment_error, which
+        // indicates that the customer cancelled the flow from within the UI,
+        // but as there's no meaningful difference to the merchant whether the
+        // customer closes via the UI or by manually closing the window, we
+        // don't differentiate these
         analytics.sendEvent(client, self._paymentType + '.local-payment.tokenization.closed.by-user');
         reject(new BraintreeError(errors.LOCAL_PAYMENT_WINDOW_CLOSED));
       } else if (err.code && err.code.indexOf('FRAME_SERVICE_FRAME_OPEN_FAILED') > -1) {
@@ -364,6 +417,10 @@ LocalPayment.prototype._formatTokenizePayload = function (response) {
  */
 LocalPayment.prototype.hasTokenizationParams = function () {
   var params = querystring.parse();
+
+  if (params.errorcode) {
+    return true;
+  }
 
   return Boolean(params.btLpToken && params.btLpPaymentId && params.btLpPayerId);
 };

@@ -176,7 +176,76 @@ describe('dataCollector', () => {
         client: testContext.client,
         paypal: true
       }).then(() => {
-        expect(fraudnet.setup).toBeCalledWith('custom-environment-value');
+        expect(fraudnet.setup).toBeCalledWith({
+          environment: 'custom-environment-value'
+        });
+      });
+    });
+
+    it('sets up custom riskCorrelationId for fraudnet', () => {
+      return dataCollector.create({
+        client: testContext.client,
+        riskCorrelationId: 'custom-risk-correlation-id',
+        paypal: true
+      }).then(() => {
+        expect(fraudnet.setup).toBeCalledWith({
+          sessionId: 'custom-risk-correlation-id',
+          environment: 'sandbox'
+        });
+      });
+    });
+
+    it('can use clientMetadataId as an alias for riskCorrelationId', () => {
+      return dataCollector.create({
+        client: testContext.client,
+        clientMetadataId: 'custom-correlation-id',
+        paypal: true
+      }).then(() => {
+        expect(fraudnet.setup).toBeCalledWith({
+          sessionId: 'custom-correlation-id',
+          environment: 'sandbox'
+        });
+      });
+    });
+
+    it('can use correlationId as an alias for riskCorrelationId', () => {
+      return dataCollector.create({
+        client: testContext.client,
+        correlationId: 'custom-correlation-id',
+        paypal: true
+      }).then(() => {
+        expect(fraudnet.setup).toBeCalledWith({
+          sessionId: 'custom-correlation-id',
+          environment: 'sandbox'
+        });
+      });
+    });
+
+    it('prefers riskCorrelationId over clientMetadataId', () => {
+      return dataCollector.create({
+        client: testContext.client,
+        clientMetadataId: 'custom-client-metadata-id',
+        riskCorrelationId: 'custom-risk-correlation-id',
+        paypal: true
+      }).then(() => {
+        expect(fraudnet.setup).toBeCalledWith({
+          sessionId: 'custom-risk-correlation-id',
+          environment: 'sandbox'
+        });
+      });
+    });
+
+    it('prefers clientMetadataId over correlationId', () => {
+      return dataCollector.create({
+        client: testContext.client,
+        clientMetadataId: 'custom-client-metadata-id',
+        correlationId: 'custom-correlation-id',
+        paypal: true
+      }).then(() => {
+        expect(fraudnet.setup).toBeCalledWith({
+          sessionId: 'custom-client-metadata-id',
+          environment: 'sandbox'
+        });
       });
     });
 
@@ -367,7 +436,7 @@ describe('dataCollector', () => {
         teardown: noop
       });
 
-      return dataCollector.create({
+      dataCollector.create({
         client: testContext.client,
         paypal: true,
         kount: true

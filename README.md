@@ -21,9 +21,9 @@ bower install braintree-web
 Usage
 =====
 
-For more thorough documentation, visit [the JavaScript client SDK docs](https://developers.braintreepayments.com/guides/client-sdk/javascript/v3).
+For more thorough documentation, visit [the JavaScript client SDK docs](https://developer.paypal.com/braintree/docs/guides/client-sdk/setup/javascript/v3).
 
-If you are upgrading from version 2.x, take a look at our [migration guide](https://developers.braintreepayments.com/guides/client-sdk/migration/javascript/v3).
+If you are upgrading from version 2.x, take a look at our [migration guide](https://developer.paypal.com/braintree/docs/guides/client-sdk/migration/javascript/v3).
 
 #### Hosted Fields integration
 
@@ -166,6 +166,16 @@ Releases
 ========
 
 Subscribe to this repo to be notified when SDK releases go out.
+
+Versions
+========
+
+This SDK abides by our Client SDK Deprecation Policy. For more information on the potential statuses of an SDK check our [developer docs](https://developer.paypal.com/braintree/docs/guides/client-sdk/migration/javascript/v3).
+
+| Major version number | Status   | Released      | Deprecated | Unsupported |
+|----------------------|----------|---------------|------------|-------------|
+| 3.x.x                | Active   | August 2016   | TBA        | TBA         |
+| 2.x.x                | Inactive | November 2014 | TBA        | TBA         |
 
 License
 =======

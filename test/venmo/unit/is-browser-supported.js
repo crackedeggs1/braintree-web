@@ -11,9 +11,11 @@ describe('isBrowserSupported', () => {
     browserDetection.isIos.mockReturnValue(false);
 
     browserDetection.isChrome.mockReturnValue(false);
+    browserDetection.isIosChrome.mockReturnValue(false);
     browserDetection.isIosSafari.mockReturnValue(false);
     browserDetection.isIosWebview.mockReturnValue(false);
     browserDetection.isAndroidWebview.mockReturnValue(false);
+    browserDetection.isFacebookOwnedBrowserOnAndroid.mockReturnValue(false);
   });
 
   describe('defaults', () => {
@@ -32,11 +34,10 @@ describe('isBrowserSupported', () => {
       expect(isBrowserSupported()).toBe(true);
     });
 
-    it('returns true for iOS Chrome', () => {
-      browserDetection.isIos.mockReturnValue(true);
-      browserDetection.isChrome.mockReturnValue(true);
+    it('returns false for iOS Chrome', () => {
+      browserDetection.isIosChrome.mockReturnValue(true);
 
-      expect(isBrowserSupported()).toBe(true);
+      expect(isBrowserSupported()).toBe(false);
     });
 
     it('returns true for Android Chrome', () => {
@@ -52,6 +53,13 @@ describe('isBrowserSupported', () => {
       browserDetection.isAndroidWebview.mockReturnValue(true);
 
       expect(isBrowserSupported()).toBe(true);
+    });
+
+    it('returns false for Facebook on Android', () => {
+      browserDetection.isAndroid.mockReturnValue(true);
+      browserDetection.isFacebookOwnedBrowserOnAndroid.mockReturnValue(true);
+
+      expect(isBrowserSupported()).toBe(false);
     });
 
     it('returns false for other browsers', () => {
@@ -115,6 +123,7 @@ describe('isBrowserSupported', () => {
     });
 
     it('returns true for iOS Safari when configured to only return to same tab', () => {
+      browserDetection.isIos.mockReturnValue(true);
       browserDetection.isIosSafari.mockReturnValue(true);
 
       expect(isBrowserSupported({

@@ -48,6 +48,9 @@ describe('GraphQL Configuration', () => {
                 'AMERICAN_EXPRESS',
                 'DINERS',
                 'DISCOVER',
+                'ELO',
+                'HIPER',
+                'HIPERCARD',
                 'INTERNATIONAL_MAESTRO',
                 'JCB',
                 'MASTERCARD',
@@ -68,14 +71,14 @@ describe('GraphQL Configuration', () => {
               countryCode: 'US',
               currencyCode: 'USD',
               merchantIdentifier: 'merchant_id',
-              supportedCardBrands: ['VISA', 'MASTERCARD', 'AMERICAN_EXPRESS', 'DISCOVER', 'INTERNATIONAL_MAESTRO']
+              supportedCardBrands: ['VISA', 'MASTERCARD', 'AMERICAN_EXPRESS', 'DISCOVER', 'INTERNATIONAL_MAESTRO', 'ELO']
             },
             googlePay: {
               displayName: 'merchant',
               environment: 'SANDBOX',
               googleAuthorization: 'fake_authorization',
               paypalClientId: 'client_id',
-              supportedCardBrands: ['VISA', 'MASTERCARD', 'AMERICAN_EXPRESS', 'DISCOVER']
+              supportedCardBrands: ['VISA', 'MASTERCARD', 'AMERICAN_EXPRESS', 'DISCOVER', 'INTERNATIONAL_MAESTRO', 'ELO']
             },
             ideal: {
               routeId: 'route_id',
@@ -117,6 +120,7 @@ describe('GraphQL Configuration', () => {
             },
             visaCheckout: {
               apiKey: 'visa_checkout_api_key',
+              encryptionKey: 'visa_checkout_encryption_key',
               externalClientId: 'external_client_id',
               supportedCardBrands: ['VISA', 'MASTERCARD', 'AMERICAN_EXPRESS', 'DISCOVER']
             },
@@ -147,7 +151,7 @@ describe('GraphQL Configuration', () => {
           countryCode: 'US',
           currencyCode: 'USD',
           merchantIdentifier: 'merchant_id',
-          supportedNetworks: ['visa', 'mastercard', 'amex', 'discover', 'maestro']
+          supportedNetworks: ['visa', 'mastercard', 'amex', 'discover', 'maestro', 'elo']
         },
         kount: {
           kountMerchantId: '600000'
@@ -186,6 +190,7 @@ describe('GraphQL Configuration', () => {
         },
         visaCheckout: {
           apikey: 'visa_checkout_api_key',
+          encryptionKey: 'visa_checkout_encryption_key',
           externalClientId: 'external_client_id',
           supportedCardTypes: [
             'Visa',
@@ -218,13 +223,18 @@ describe('GraphQL Configuration', () => {
             'visa',
             'mastercard',
             'amex',
-            'discover'
+            'discover',
+            'maestro',
+            'elo'
           ]
         },
         creditCards: {
           supportedCardTypes: [
             'American Express',
             'Discover',
+            'Elo',
+            'Hiper',
+            'Hipercard',
             'Maestro',
             'JCB',
             'MasterCard',
